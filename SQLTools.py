@@ -189,6 +189,10 @@ def insertContent(content):
 
 def getOutputPlace(syntax=None, name="SQLTools Result"):
     showResultOnWindow = settings.get('show_result_on_window', False)
+
+    # Append name of the current connection to results panel.
+    name = name + ": " + str(ST.conn)
+
     if not showResultOnWindow:
         resultContainer = Window().find_output_panel(name)
         if resultContainer is None:
