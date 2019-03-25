@@ -74,14 +74,14 @@ def startPlugin():
         settings    = Settings(SETTINGS_FILENAME, default=SETTINGS_FILENAME_DEFAULT)
     except Exception as e:
         msg = '{0}: Failed to parse {1} file'.format(__package__, SQLTOOLS_SETTINGS_FILE)
-        logging.error(msg + "\nError: " + str(e))
+        logging.exception(msg)
         Window().status_message(msg)
 
     try:
         connections = Settings(CONNECTIONS_FILENAME, default=CONNECTIONS_FILENAME_DEFAULT)
     except Exception as e:
         msg = '{0}: Failed to parse {1} file'.format(__package__, SQLTOOLS_CONNECTIONS_FILE)
-        logging.error(msg + "\nError: " + str(e))
+        logging.exception(msg)
         Window().status_message(msg)
 
     queries     = Storage(QUERIES_FILENAME, default=QUERIES_FILENAME_DEFAULT)
@@ -417,7 +417,7 @@ class ST(EventListener):
             sublime.message_dialog('Your database has no tables.')
             return
 
-        Window().show_quick_panel(ST.tables, callback)
+        ST.show_quick_panel_with_selection(ST.tables, callback)
 
     @staticmethod
     def selectFunction(callback):
@@ -425,7 +425,26 @@ class ST(EventListener):
             sublime.message_dialog('Your database has no functions.')
             return
 
-        Window().show_quick_panel(ST.functions, callback)
+        ST.show_quick_panel_with_selection(ST.functions, callback)
+
+    @staticmethod
+    def show_quick_panel_with_selection(arrayOfValues, callback):
+        w = Window();
+        view = w.active_view()
+        selection = view.sel()[0]
+
+        initialText = ''
+        # ignore obvious non-identifier selections
+        if selection.size() <= 128:
+            (row_begin,_) = view.rowcol(selection.begin())
+            (row_end,_) = view.rowcol(selection.end())
+            # only consider selections within same line
+            if row_begin == row_end:
+                initialText = view.substr(selection)
+
+        w.show_quick_panel(arrayOfValues, callback)
+        w.run_command('insert', {'characters': initialText})
+        w.run_command("select_all")
 
     @staticmethod
     def on_query_completions(view, prefix, locations):
@@ -442,21 +461,19 @@ class ST(EventListener):
         if not len(locations):
             return None
 
-        # disable completions inside strings
-        if view.match_selector(locations[0], 'string'):
-            return None
-
-        # show completions only for specific selectors
-        selectors = ST.completion.getSelectors()
-        selectorMatched = False
-        if selectors:
-            for selector in selectors:
+        ignoreSelectors = ST.completion.getIgnoreSelectors()
+        if ignoreSelectors:
+            for selector in ignoreSelectors:
                 if view.match_selector(locations[0], selector):
-                    selectorMatched = True
-                    break
+                    return None
 
-        if not selectorMatched:
-            return None
+        activeSelectors = ST.completion.getActiveSelectors()
+        if activeSelectors:
+            for selector in activeSelectors:
+                if view.match_selector(locations[0], selector):
+                    break
+            else:
+                return None
 
         # sublimePrefix = prefix
         # sublimeCompletions = view.extract_completions(sublimePrefix, locations[0])
@@ -768,16 +785,6 @@ def reload():
 
 
 def plugin_loaded():
-    # this ensures we have empty settings file in 'User' directory during first start
-    # otherwise sublime will copy entire contents of 'SQLTools.sublime-settings'
-    # which is not desirable and prevents future changes to queries and other
-    # sensible defaults defined in settings file, as those would be overridden by content
-    # from older versions of SQLTools in 'User\SQLTools.sublime-settings'
-    sublimeUserFolder = getSublimeUserFolder()
-    userSettingFile = os.path.join(sublimeUserFolder, SQLTOOLS_SETTINGS_FILE)
-    if not os.path.isfile(userSettingFile):
-        # create empty settings file in 'User' folder
-        sublime.save_settings(SQLTOOLS_SETTINGS_FILE)
 
     try:
         from package_control import events
