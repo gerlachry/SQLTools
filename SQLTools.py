@@ -395,6 +395,7 @@ class ST(EventListener):
         connListNames.sort()
         ST.conn = ST.connectionList.get(connListNames[index])
         ST.loadConnectionData(tablesCallback, columnsCallback, functionsCallback)
+        Window().active_view().set_status('conn', 'SQLTools Connection: ' + str(ST.conn))
         logger.info('Connection "{0}" selected'.format(ST.conn))
 
     @staticmethod
